@@ -1,45 +1,73 @@
-#python 3.11 kell hozzá!!!!
+# python hangToTxt.py d:\Enyim\mylearning\!DevOps hu mkv
 
-#pip install openai-whisper
+# nvidia-smi
 
-#használat hangToTxt.py d:\Liwi\DevOpsServer en mp4
+# Python 3.11
+# FFmpeg szükséges! (lásd lent)
+# pip install openai-whisper
+# pip uninstall torch torchvision torchaudio -y
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
-import os,sys
+
+import os
+import sys
+import shutil
 import whisper
 import torch
 from datetime import datetime
 
+# Globális változók
 model = None
-root_dir = None
+rootDir = None
 parLang = None
-fajlTipus = None
+fajlTipus = None  # 'mp4' vagy 'webm' stb. pont nélkül is jó
 
 def info():
-    print("Használat: hangToTxt.py <Könyvtár Pl: d:\Liwi\DevOpsServer> <Nyelv Pl: en vagy hu> <Tipus: webm vany mp4>")
-    print("Használat: hangToTxt.py d:\Liwi\DevOpsServer en mp4")
+    print("Használat:")
+    print("  hangToTxt.py <Könyvtár pl.: d:\\Liwi\\filmKonyvtár> <Nyelv pl.: en vagy hu> <Típus: webm vagy mp4>")
+    print("Példa:")
+    print("  hangToTxt.py d:\\Liwi\\filmKonyvtár en mp4")
+    print("---- Rendszer infó ----")
+    cuda_ok = torch.cuda.is_available()
+    print("Videókártyát használja (torch.cuda.is_available()): " + str(cuda_ok))
+    try:
+        print("CUDA verzió (torch.version.cuda): " + str(torch.version.cuda))
+    except Exception:
+        print("CUDA verzió nem elérhető")
+    try:
+        if cuda_ok:
+            print("GPU: " + torch.cuda.get_device_name(0))
+        else:
+            print("Nincs GPU")
+    except Exception as e:
+        print(f"GPU lekérdezési hiba: {e}")
+    print("-----------------------")
 
-    print("Video kértyát használja azaz torch.cuda.is_available(): "+str(torch.cuda.is_available()))
-    print(torch.version.cuda)
-    print(torch.cuda.get_device_name(1) if torch.cuda.is_available() else "Nincs GPU")
+def ellenoriz_ffmpeg():
+    """Whisperhez FFmpeg kell. Ha nincs az elérési úton, jelezzük."""
+    if shutil.which("ffmpeg") is None:
+        print("\nFIGYELEM: Az FFmpeg nem található a PATH-ban! A Whisper hibára futhat video/audio beolvasáskor.")
+        print("Windows telepítéshez pl.: https://www.gyan.dev/ffmpeg/builds/ vagy choco: choco install ffmpeg")
+        print("Linux: sudo apt-get install ffmpeg   |   macOS: brew install ffmpeg\n")
 
-def get_input_folder():
-    # Ha nincs paraméter → alapértelmezett mappa
-    if len(sys.argv) < 2 or not sys.argv[1].strip():
-        return r"c:\temp"
-
-    # Ha van paraméter → azt használjuk
-    return sys.argv[1]
-
-def init(): 
-    #root_dir = r"c:\temp"
-    #1) Modell betöltése
-    if sys.argv.count==3:
-        parLang=sys.argv[2]
-        fajlTipus=sys.argv[3]
-        model = whisper.load_model("small") # lehet: tiny, base, small, medium, large
-        root_dir = get_input_folder()
-        return True
+def init():
+    global model, rootDir, parLang, fajlTipus
+    if len(sys.argv) == 4:
+        rootDir = sys.argv[1]
+        parLang = sys.argv[2]
+        fajlTipus = sys.argv[3].lower().lstrip('.')  # 'mp4' vagy '.mp4' mindegy
+        try:
+            # Modellek: tiny, base, small, medium, large (small jó kompromisszum)
+            # CPU-n: fp16=False kell
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            print(f"Modell betöltése (small), eszköz: {device}")
+            model = whisper.load_model("small", device=device)
+            return True
+        except Exception as e:
+            print(f"Nem sikerült a modell betöltése: {e}")
+            return False
     else:
+        print("Hibás paraméterezés! (3 paraméter szükséges)")
         return False
 
 def sec_to_minsec(sec):
@@ -49,10 +77,11 @@ def sec_to_minsec(sec):
 
 def segments_to_text(result):
     lines = []
-    for seg in result["segments"]:
-        start = sec_to_minsec(seg["start"])
-        end = sec_to_minsec(seg["end"])
-        text = seg["text"].strip()
+    # A whisper.transcribe() result["segments"] listát ad
+    for seg in result.get("segments", []):
+        start = sec_to_minsec(seg.get("start", 0))
+        end = sec_to_minsec(seg.get("end", 0))
+        text = seg.get("text", "").strip()
         lines.append(f"[{start} --> {end}] {text}")
     return "\n".join(lines)
 
@@ -60,37 +89,60 @@ def magyar_datum():
     return datetime.now().strftime("%Y. %B %d.").replace(" 0", " ")
 
 def magyar_datum_ido():
-    # %Y = év, %B = hónap neve, %d = nap, %H:%M = óra:perc
+    # %Y = év, %B = hónap neve, %d = nap, %H:%M:%S
     datum = datetime.now().strftime("%Y. %B %d. %H:%M:%S")
-    # a felesleges nullát kivesszük a nap elől
     return datum.replace(" 0", " ")
 
 def hangki(video):
-    print(magyar_datum_ido())
-    txt_path = os.path.basename(video)
-    txt_path=txt_path.replace(sys.argv[3], ".txt")
-    print(txt_path)
+    global model, parLang
+    try:
+        print(magyar_datum_ido())
+        base_dir = os.path.dirname(video)
+        base_name = os.path.splitext(os.path.basename(video))[0]
+        txt_path = os.path.join(base_dir, base_name + ".txt")
+        print(f"Kimenet: {txt_path}")
 
-    # 2) Videó beolvasása és átirat készítése
-    result = model.transcribe(video, language=parLang, verbose=True)
+        # FP16 csak CUDA esetén
+        use_cuda = torch.cuda.is_available()
+        transcribe_kwargs = {
+            "language": parLang,
+            "verbose": True,
+            "fp16": use_cuda,  # CPU-n fp16=False
+        }
 
-    with open(txt_path, "w", encoding="utf-8") as f:
-        f.write(segments_to_text(result)+ "\n\r")  # text volt!!
+        # Átirat
+        result = model.transcribe(video, **transcribe_kwargs)
 
-    print(magyar_datum_ido())
-    
+        # Időbélyeges átírás
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(segments_to_text(result) + "\n")
+
+        print(magyar_datum_ido())
+    except Exception as e:
+        print(f"Hiba a feldolgozás közben ({video}): {e}")
+
 def main():
-    print("main root_dir: "+root_dir)
-    for dirpath, dirnames, filenames in os.walk(root_dir):
+    global rootDir, fajlTipus
+    print("Feldolgozás gyökérkönyvtára: " + str(rootDir))
+    # Megengedjük: .mp4 / mp4 / .webm / webm
+    endings = {fajlTipus, f".{fajlTipus}"}
+    for dirpath, dirnames, filenames in os.walk(rootDir):
         for filename in filenames:
-            if filename.lower().endswith(fajlTipus):
+            lower = filename.lower()
+            if any(lower.endswith(end) for end in endings):
                 full_path = os.path.join(dirpath, filename)
-                print(full_path)
+                print(f"Feldolgozás: {full_path}")
                 hangki(full_path)
 
 if __name__ == "__main__":
-    os.system("cls")
+    # Windows-on cls, máshol clear – ha nem kell, kikommentezhető
+    try:
+        os.system("cls" if os.name == "nt" else "clear")
+    except Exception:
+        pass
+
     info()
-    if(init()):
+    ellenoriz_ffmpeg()
+    if init():
         main()
     print("Kész")
