@@ -1,24 +1,26 @@
 #python 3.11 kell hozzá!!!!
-#használat hangToTxt.py d:\Liwi\DevOpsServer en mp4
 
 #pip install openai-whisper
+
+#használat hangToTxt.py d:\Liwi\DevOpsServer en mp4
 
 import os,sys
 import whisper
 import torch
 from datetime import datetime
 
-os.system("cls")
+model = None
+root_dir = None
+parLang = None
+fajlTipus = None
 
-print("Használat: hangToTxt.py <Könyvtár Pl: d:\Liwi\DevOpsServer> <Nyelv Pl: en vagy hu <Tipus. webm vany mp4>")
-print("Használat: hangToTxt.py d:\Liwi\DevOpsServer en mp4")
+def info():
+    print("Használat: hangToTxt.py <Könyvtár Pl: d:\Liwi\DevOpsServer> <Nyelv Pl: en vagy hu> <Tipus: webm vany mp4>")
+    print("Használat: hangToTxt.py d:\Liwi\DevOpsServer en mp4")
 
-print("Video kértyát használja azaz torch.cuda.is_available(): "+str(torch.cuda.is_available()))
-print(torch.version.cuda)
-print(torch.cuda.get_device_name(1) if torch.cuda.is_available() else "Nincs GPU")
-
-#1) Modell betöltése
-model = whisper.load_model("small") # lehet: tiny, base, small, medium, large
+    print("Video kértyát használja azaz torch.cuda.is_available(): "+str(torch.cuda.is_available()))
+    print(torch.version.cuda)
+    print(torch.cuda.get_device_name(1) if torch.cuda.is_available() else "Nincs GPU")
 
 def get_input_folder():
     # Ha nincs paraméter → alapértelmezett mappa
@@ -27,10 +29,18 @@ def get_input_folder():
 
     # Ha van paraméter → azt használjuk
     return sys.argv[1]
-    
-#root_dir = r"c:\temp"
-root_dir = get_input_folder()
-print("root_dir: "+root_dir)
+
+def init(): 
+    #root_dir = r"c:\temp"
+    #1) Modell betöltése
+    if sys.argv.count==3:
+        parLang=sys.argv[2]
+        fajlTipus=sys.argv[3]
+        model = whisper.load_model("small") # lehet: tiny, base, small, medium, large
+        root_dir = get_input_folder()
+        return True
+    else:
+        return False
 
 def sec_to_minsec(sec):
     m = int(sec // 60)
@@ -62,7 +72,7 @@ def hangki(video):
     print(txt_path)
 
     # 2) Videó beolvasása és átirat készítése
-    result = model.transcribe(video, language=sys.argv[2], verbose=True)
+    result = model.transcribe(video, language=parLang, verbose=True)
 
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write(segments_to_text(result)+ "\n\r")  # text volt!!
@@ -70,13 +80,17 @@ def hangki(video):
     print(magyar_datum_ido())
     
 def main():
+    print("main root_dir: "+root_dir)
     for dirpath, dirnames, filenames in os.walk(root_dir):
         for filename in filenames:
-            if filename.lower().endswith(sys.argv[3]):
+            if filename.lower().endswith(fajlTipus):
                 full_path = os.path.join(dirpath, filename)
                 print(full_path)
                 hangki(full_path)
 
 if __name__ == "__main__":
-    main()
+    os.system("cls")
+    info()
+    if(init()):
+        main()
     print("Kész")
