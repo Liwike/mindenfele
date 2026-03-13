@@ -1,7 +1,13 @@
 import torch
+import os
 
 # pip uninstall torch torchvision torchaudio -y
 # pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+try:
+    os.system("cls" if os.name == "nt" else "clear")
+except Exception:
+    pass
 
 print(f"torch.cuda.is_available(): {torch.cuda.is_available()}")
 print(f"torch.version.cuda: {torch.version.cuda}")
