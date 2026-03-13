@@ -4,8 +4,15 @@ import os
 # pip uninstall torch torchvision torchaudio -y
 # pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
+cls = None
+
 try:
-    os.system("cls" if os.name == "nt" else "clear")
+    if os.name == "nt":
+        cls= "cls"  
+    else:
+        cls = "clear" 
+
+    os.system(cls)
 except Exception:
     pass
 
