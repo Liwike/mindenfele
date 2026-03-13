@@ -6,16 +6,22 @@ import os
 
 cls = None
 
-try:
-    if os.name == "nt":
-        cls= "cls"  
-    else:
-        cls = "clear" 
+def clear():
+    try:
+        if os.name == "nt":
+            cls= "cls"  
+        else:
+            cls = "clear" 
+        os.system(cls)
+    except Exception:
+        pass
 
-    os.system(cls)
-except Exception:
-    pass
+def main():
+    print(f"torch.cuda.is_available(): {torch.cuda.is_available()}")
+    print(f"torch.version.cuda: {torch.version.cuda}")
+    print(f"torch.cuda.get_device_name(0): {torch.cuda.get_device_name(0)}")
 
-print(f"torch.cuda.is_available(): {torch.cuda.is_available()}")
-print(f"torch.version.cuda: {torch.version.cuda}")
-print(f"torch.cuda.get_device_name(0): {torch.cuda.get_device_name(0)}")
+if __name__ == "__main__":
+    clear()
+    main()
+
