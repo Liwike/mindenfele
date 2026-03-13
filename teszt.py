@@ -6,7 +6,7 @@ import os
 
 cls = None
 
-def clearNaMostMitCsinálsz2():
+def clear():
     try:
         if os.name == "nt":
             cls= "cls"  
